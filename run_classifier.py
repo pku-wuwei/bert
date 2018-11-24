@@ -32,50 +32,34 @@ flags = tf.flags
 
 FLAGS = flags.FLAGS
 
-## Required parameters
-flags.DEFINE_string(
-    "data_dir", None,
-    "The input data dir. Should contain the .tsv files (or other data files) "
-    "for the task.")
+#  Required parameters
+flags.DEFINE_string("data_dir", None, "The input data dir. Should contain the .tsv files for the task.")
 
-flags.DEFINE_string(
-    "bert_config_file", None,
-    "The config json file corresponding to the pre-trained BERT model. "
-    "This specifies the model architecture.")
+flags.DEFINE_string("bert_config_file", None, "The config json file corresponding to the pre-trained BERT model. "
+                                              "This specifies the model architecture.")
 
 flags.DEFINE_string("task_name", None, "The name of the task to train.")
 
-flags.DEFINE_string("vocab_file", None,
-                    "The vocabulary file that the BERT model was trained on.")
+flags.DEFINE_string("vocab_file", None, "The vocabulary file that the BERT model was trained on.")
 
-flags.DEFINE_string(
-    "output_dir", None,
-    "The output directory where the model checkpoints will be written.")
+flags.DEFINE_string("output_dir", None, "The output directory where the model checkpoints will be written.")
 
-## Other parameters
+#  Other parameters
 
-flags.DEFINE_string(
-    "init_checkpoint", None,
-    "Initial checkpoint (usually from a pre-trained BERT model).")
+flags.DEFINE_string("init_checkpoint", None, "Initial checkpoint (usually from a pre-trained BERT model).")
 
-flags.DEFINE_bool(
-    "do_lower_case", True,
-    "Whether to lower case the input text. Should be True for uncased "
-    "models and False for cased models.")
+flags.DEFINE_bool("do_lower_case", True, "Whether to lower case the input text. "
+                                         "Should be True for uncased models and False for cased models.")
 
-flags.DEFINE_integer(
-    "max_seq_length", 128,
-    "The maximum total input sequence length after WordPiece tokenization. "
-    "Sequences longer than this will be truncated, and sequences shorter "
-    "than this will be padded.")
+flags.DEFINE_integer("max_seq_length", 128, "The maximum total input sequence length after WordPiece tokenization. "
+                                            "Sequences longer than this will be truncated, and sequences shorter "
+                                            "than this will be padded.")
 
 flags.DEFINE_bool("do_train", False, "Whether to run training.")
 
 flags.DEFINE_bool("do_eval", False, "Whether to run eval on the dev set.")
 
-flags.DEFINE_bool(
-    "do_predict", False,
-    "Whether to run the model in inference mode on the test set.")
+flags.DEFINE_bool("do_predict", False, "Whether to run the model in inference mode on the test set.")
 
 flags.DEFINE_integer("train_batch_size", 32, "Total batch size for training.")
 
@@ -85,45 +69,29 @@ flags.DEFINE_integer("predict_batch_size", 8, "Total batch size for predict.")
 
 flags.DEFINE_float("learning_rate", 5e-5, "The initial learning rate for Adam.")
 
-flags.DEFINE_float("num_train_epochs", 3.0,
-                   "Total number of training epochs to perform.")
+flags.DEFINE_float("num_train_epochs", 3.0, "Total number of training epochs to perform.")
 
-flags.DEFINE_float(
-    "warmup_proportion", 0.1,
-    "Proportion of training to perform linear learning rate warmup for. "
-    "E.g., 0.1 = 10% of training.")
+flags.DEFINE_float("warmup_proportion", 0.1, "Proportion of training to perform linear learning rate warmup for. "
+                                             "E.g., 0.1 = 10% of training.")
 
-flags.DEFINE_integer("save_checkpoints_steps", 1000,
-                     "How often to save the model checkpoint.")
+flags.DEFINE_integer("save_checkpoints_steps", 1000, "How often to save the model checkpoint.")
 
-flags.DEFINE_integer("iterations_per_loop", 1000,
-                     "How many steps to make in each estimator call.")
+flags.DEFINE_integer("iterations_per_loop", 1000, "How many steps to make in each estimator call.")
 
 flags.DEFINE_bool("use_tpu", False, "Whether to use TPU or GPU/CPU.")
 
-tf.flags.DEFINE_string(
-    "tpu_name", None,
-    "The Cloud TPU to use for training. This should be either the name "
-    "used when creating the Cloud TPU, or a grpc://ip.address.of.tpu:8470 "
-    "url.")
+flags.DEFINE_string("tpu_name", None, "The Cloud TPU to use for training. This should be either the name "
+                                      "used when creating the Cloud TPU, or a grpc://ip.address.of.tpu:8470 url.")
 
-tf.flags.DEFINE_string(
-    "tpu_zone", None,
-    "[Optional] GCE zone where the Cloud TPU is located in. If not "
-    "specified, we will attempt to automatically detect the GCE project from "
-    "metadata.")
+flags.DEFINE_string("tpu_zone", None, "[Optional] GCE zone where the Cloud TPU is located in. If not specified, we "
+                                      "will attempt to automatically detect the GCE project from metadata.")
 
-tf.flags.DEFINE_string(
-    "gcp_project", None,
-    "[Optional] Project name for the Cloud TPU-enabled project. If not "
-    "specified, we will attempt to automatically detect the GCE project from "
-    "metadata.")
+flags.DEFINE_string("gcp_project", None, "[Optional] Project name for the Cloud TPU-enabled project. If not specify,"
+                                         "we will attempt to automatically detect the GCE project from metadata.")
 
-tf.flags.DEFINE_string("master", None, "[Optional] TensorFlow master URL.")
+flags.DEFINE_string("master", None, "[Optional] TensorFlow master URL.")
 
-flags.DEFINE_integer(
-    "num_tpu_cores", 8,
-    "Only used if `use_tpu` is True. Total number of TPU cores to use.")
+flags.DEFINE_integer("num_tpu_cores", 8, "Only used if `use_tpu` is True. Total number of TPU cores to use.")
 
 
 class InputExample(object):
@@ -195,21 +163,18 @@ class XnliProcessor(DataProcessor):
 
     def get_train_examples(self, data_dir):
         """See base class."""
-        lines = self._read_tsv(
-            os.path.join(data_dir, "multinli",
-                         "multinli.train.%s.tsv" % self.language))
+        lines = self._read_tsv(os.path.join(data_dir, "multinli", "multinli.train.%s.tsv" % self.language))
         examples = []
         for (i, line) in enumerate(lines):
             if i == 0:
                 continue
-            guid = "train-%d" % (i)
+            guid = "train-%d" % i
             text_a = tokenization.convert_to_unicode(line[0])
             text_b = tokenization.convert_to_unicode(line[1])
             label = tokenization.convert_to_unicode(line[2])
             if label == tokenization.convert_to_unicode("contradictory"):
                 label = tokenization.convert_to_unicode("contradiction")
-            examples.append(
-                InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
+            examples.append(InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
         return examples
 
     def get_dev_examples(self, data_dir):
@@ -219,15 +184,14 @@ class XnliProcessor(DataProcessor):
         for (i, line) in enumerate(lines):
             if i == 0:
                 continue
-            guid = "dev-%d" % (i)
+            guid = "dev-%d" % i
             language = tokenization.convert_to_unicode(line[0])
             if language != tokenization.convert_to_unicode(self.language):
                 continue
             text_a = tokenization.convert_to_unicode(line[6])
             text_b = tokenization.convert_to_unicode(line[7])
             label = tokenization.convert_to_unicode(line[1])
-            examples.append(
-                InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
+            examples.append(InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
         return examples
 
     def get_labels(self):
@@ -240,19 +204,15 @@ class MnliProcessor(DataProcessor):
 
     def get_train_examples(self, data_dir):
         """See base class."""
-        return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "train.tsv")), "train")
+        return self._create_examples(self._read_tsv(os.path.join(data_dir, "train.tsv")), "train")
 
     def get_dev_examples(self, data_dir):
         """See base class."""
-        return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "dev_matched.tsv")),
-            "dev_matched")
+        return self._create_examples(self._read_tsv(os.path.join(data_dir, "dev_matched.tsv")), "dev_matched")
 
     def get_test_examples(self, data_dir):
         """See base class."""
-        return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "test_matched.tsv")), "test")
+        return self._create_examples(self._read_tsv(os.path.join(data_dir, "test_matched.tsv")), "test")
 
     def get_labels(self):
         """See base class."""
@@ -271,8 +231,7 @@ class MnliProcessor(DataProcessor):
                 label = "contradiction"
             else:
                 label = tokenization.convert_to_unicode(line[-1])
-            examples.append(
-                InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
+            examples.append(InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
         return examples
 
 
@@ -281,18 +240,15 @@ class MrpcProcessor(DataProcessor):
 
     def get_train_examples(self, data_dir):
         """See base class."""
-        return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "train.tsv")), "train")
+        return self._create_examples(self._read_tsv(os.path.join(data_dir, "train.tsv")), "train")
 
     def get_dev_examples(self, data_dir):
         """See base class."""
-        return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev")
+        return self._create_examples(self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev")
 
     def get_test_examples(self, data_dir):
         """See base class."""
-        return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "test.tsv")), "test")
+        return self._create_examples(self._read_tsv(os.path.join(data_dir, "test.tsv")), "test")
 
     def get_labels(self):
         """See base class."""
@@ -311,8 +267,7 @@ class MrpcProcessor(DataProcessor):
                 label = "0"
             else:
                 label = tokenization.convert_to_unicode(line[0])
-            examples.append(
-                InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
+            examples.append(InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
         return examples
 
 
@@ -352,13 +307,11 @@ class ColaProcessor(DataProcessor):
             else:
                 text_a = tokenization.convert_to_unicode(line[3])
                 label = tokenization.convert_to_unicode(line[1])
-            examples.append(
-                InputExample(guid=guid, text_a=text_a, text_b=None, label=label))
+            examples.append(InputExample(guid=guid, text_a=text_a, text_b=None, label=label))
         return examples
 
 
-def convert_single_example(ex_index, example, label_list, max_seq_length,
-                           tokenizer):
+def convert_single_example(ex_index, example, label_list, max_seq_length, tokenizer):
     """Converts a single `InputExample` into a single `InputFeatures`."""
     label_map = {}
     for (i, label) in enumerate(label_list):
@@ -449,8 +402,7 @@ def convert_single_example(ex_index, example, label_list, max_seq_length,
     return feature
 
 
-def file_based_convert_examples_to_features(
-        examples, label_list, max_seq_length, tokenizer, output_file):
+def file_based_convert_examples_to_features(examples, label_list, max_seq_length, tokenizer, output_file):
     """Convert a set of `InputExample`s to a TFRecord file."""
 
     writer = tf.python_io.TFRecordWriter(output_file)
@@ -458,9 +410,7 @@ def file_based_convert_examples_to_features(
     for (ex_index, example) in enumerate(examples):
         if ex_index % 10000 == 0:
             tf.logging.info("Writing example %d of %d" % (ex_index, len(examples)))
-
-        feature = convert_single_example(ex_index, example, label_list,
-                                         max_seq_length, tokenizer)
+        feature = convert_single_example(ex_index, example, label_list, max_seq_length, tokenizer)
 
         def create_int_feature(values):
             f = tf.train.Feature(int64_list=tf.train.Int64List(value=list(values)))
@@ -476,8 +426,7 @@ def file_based_convert_examples_to_features(
         writer.write(tf_example.SerializeToString())
 
 
-def file_based_input_fn_builder(input_file, seq_length, is_training,
-                                drop_remainder):
+def file_based_input_fn_builder(input_file, seq_length, is_training, drop_remainder):
     """Creates an `input_fn` closure to be passed to TPUEstimator."""
 
     name_to_features = {
@@ -582,7 +531,7 @@ def create_model(bert_config, is_training, input_ids, input_mask, segment_ids,
         per_example_loss = -tf.reduce_sum(one_hot_labels * log_probs, axis=-1)
         loss = tf.reduce_mean(per_example_loss)
 
-        return (loss, per_example_loss, logits, probabilities)
+        return loss, per_example_loss, logits, probabilities
 
 
 def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
@@ -632,7 +581,6 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
             tf.logging.info("  name = %s, shape = %s%s", var.name, var.shape,
                             init_string)
 
-        output_spec = None
         if mode == tf.estimator.ModeKeys.TRAIN:
 
             train_op = optimization.create_optimizer(
@@ -732,10 +680,7 @@ def convert_examples_to_features(examples, label_list, max_seq_length,
     for (ex_index, example) in enumerate(examples):
         if ex_index % 10000 == 0:
             tf.logging.info("Writing example %d of %d" % (ex_index, len(examples)))
-
-        feature = convert_single_example(ex_index, example, label_list,
-                                         max_seq_length, tokenizer)
-
+        feature = convert_single_example(ex_index, example, label_list, max_seq_length, tokenizer)
         features.append(feature)
     return features
 
