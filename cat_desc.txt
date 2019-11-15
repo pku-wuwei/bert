@@ -1,0 +1,152 @@
+****Subject Codes (135)
+
+Money/Foreign Exchange (MONEY-FX)
+Shipping (SHIP)
+Interest Rates (INTEREST)
+
+**Economic Indicator Codes (16)
+
+Balance of Payments (BOP)
+Trade (TRADE)
+Consumer Price Index (CPI)
+Wholesale Price Index (WPI)
+Unemployment (JOBS)
+Industrial Production Index (IPI)
+Capacity Utilisation (CPU)
+Gross National/Domestic Product (GNP)
+Money Supply (MONEY-SUPPLY)
+Reserves (RESERVES)
+Leading Economic Indicators (LEI)
+Housing Starts (HOUSING)
+Personal Income (INCOME)
+Inventories (INVENTORIES)
+Instalment Debt/Consumer Credit (INSTAL-DEBT)
+Retail Sales (RETAIL)
+
+**Currency Codes (27)
+
+U.S. Dollar (DLR)
+Australian Dollar (AUSTDLR)
+Hong Kong Dollar (HK)
+Singapore Dollar (SINGDLR)
+New Zealand Dollar (NZDLR)
+Canadian Dollar (CAN)
+Sterling (STG)
+D-Mark (DMK)
+Japanese Yen (YEN)
+Swiss Franc (SFR)
+French Franc (FFR)
+Belgian Franc (BFR)
+Netherlands Guilder/Florin (DFL)
+Italian Lira (LIT)
+Danish Krone/Crown (DKR)
+Norwegian Krone/Crown (NKR)
+Swedish Krona/Crown (SKR)
+Mexican Peso (MEXPESO)
+Brazilian Cruzado (CRUZADO)
+Argentine Austral (AUSTRAL)
+Saudi Arabian Riyal (SAUDRIYAL)
+South African Rand (RAND)
+Indonesian Rupiah (RUPIAH)
+Malaysian Ringitt (RINGGIT)
+Portuguese Escudo (ESCUDO)
+Spanish Peseta (PESETA)
+Greek Drachma (DRACHMA)
+
+**Corporate Codes (2)
+
+Mergers/Acquisitions (ACQ)
+Earnings and Earnings Forecasts (EARN)
+
+**Commodity Codes (78)
+
+ALUM
+BARLEY
+CARCASS
+CASTOR-MEAL
+CASTOR-OIL
+CASTORSEED
+CITRUSPULP
+COCOA
+COCONUT-OIL
+COCONUT
+COFFEE
+COPPER
+COPRA-CAKE
+CORN-OIL
+CORN
+CORNGLUTENFEED
+COTTON
+COTTON-MEAL
+COTTON-OIL
+COTTONSEED
+F-CATTLE
+FISHMEAL
+FLAXSEED
+GOLD
+GRAIN
+GROUNDNUT
+GROUNDNUT-MEAL
+GROUNDNUT-OIL
+IRON-STEEL
+LEAD
+LIN-MEAL
+LIN-OIL
+LINSEED
+LIVESTOCK
+L-CATTLE
+HOG
+LUMBER
+LUPIN
+MEAL-FEED
+NICKEL
+OAT
+OILSEED
+ORANGE
+PALLADIUM
+PALM-MEAL
+PALM-OIL
+PALMKERNEL
+PLATINUM
+PLYWOOD
+PORK-BELLY
+POTATO
+RAPE-MEAL
+RAPE-OIL
+RAPESEED
+RED-BEAN
+RICE
+RUBBER
+RYE
+SILK
+SILVER
+SORGHUM
+SOY-MEAL
+SOY-OIL
+SOYBEAN
+STRATEGIC-METAL
+SUGAR
+SUN-MEAL
+SUN-OIL
+SUNSEED
+TAPIOCA
+TEA
+TIN
+TUNG-OIL
+TUNG
+VEG-OIL
+WHEAT
+WOOL
+ZINC
+
+**Energy Codes (9)
+
+Crude Oil (CRUDE)
+Heating Oil/Gas Oil (HEAT)
+Fuel Oil (FUEL)
+Gasoline (GAS)
+Natural Gas (NAT-GAS)
+Petro-Chemicals (PET-CHEM)
+Propane (PROPANE)
+Jet and Kerosene (JET)
+Naphtha (NAPHTHA)
