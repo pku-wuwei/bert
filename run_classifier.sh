@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 export BERT_BASE_DIR=gs://cloud-tpu-checkpoints/bert/uncased_L-12_H-768_A-12
 export GLUE_DIR=gs://shannon_albert/hedwig
-export TASK_NAME=Reuters-Wiki
+export TASK_NAME=Reuters-Desc
 export STORAGE_BUCKET=gs://shannon_albert
 export TPU_NAME=xiaoyli
 

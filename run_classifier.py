@@ -965,6 +965,7 @@ def main(_):
         "xnli": XnliProcessor,
         "sst": SstProcessor,
         "sstlabel": SstLabelProcessor,
+        'reuters-desc': ReutersLabelProcessor,
         'reuters-wiki': ReutersWikiProcessor,
     }
 
