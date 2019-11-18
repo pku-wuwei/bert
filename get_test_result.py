@@ -7,20 +7,22 @@
 @time: 2019/11/14
 @contact: wu.wei@pku.edu.cn
 """
-from sklearn.metrics import f1_score
+from sklearn.metrics import f1_score, accuracy_score
 import numpy as np
+import tensorflow as tf
+from sklearn.datasets import fetch_20newsgroups
 
 
-def compare(predict_path, gold_path):
+def compare_multi(predict_path, gold_path):
     preditions = []
-    with open(predict_path) as fp:
+    with tf.gfile.GFile(predict_path) as fp:
         for line in fp:
             _, example_id, label_id, pos, neg = line.split()
             if label_id == '0':
                 preditions.append([])
             preditions[-1].append(float(pos) > 0.5)
     golds = []
-    with open(gold_path) as fg:
+    with tf.gfile.GFile(gold_path) as fg:
         for i, line in enumerate(fg):
             labels, text = line.strip().split('\t')
             gold_labels = [l == '1' for l in labels]
@@ -32,7 +34,62 @@ def compare(predict_path, gold_path):
     print(f1_score(golds, preditions, average='micro'))
 
 
+def compare_multi1(predict_path, gold_path):
+    preditions = []
+    with tf.gfile.GFile(predict_path) as fp:
+        for line in fp:
+            data = [float(d) > 0.5 for d in line.strip().split()[3:]]
+            preditions.append(data)
+    preditions = np.array(preditions)
+    golds = []
+    with tf.gfile.GFile(gold_path) as fg:
+        for i, line in enumerate(fg):
+            labels, text = line.strip().split('\t')
+            gold_labels = [l == '1' for l in labels]
+            golds.append(gold_labels)
+    golds = np.array(golds)
+    print(golds.shape)
+    print(preditions.shape)
+    print(f1_score(golds, preditions, average='micro'))
+
+
+def compare_single(predict_path):
+    preditions = []
+    with tf.gfile.GFile(predict_path) as fp:
+        for line in fp:
+            _, example_id, label_id, pos, neg = line.split()
+            if label_id == '0':
+                preditions.append([])
+            preditions[-1].append(float(pos))
+    predict_index = np.array([pred.index(max(pred)) for pred in preditions])
+    golds = fetch_20newsgroups(subset='test')['target']
+    print(golds.shape)
+    print(predict_index.shape)
+    print(accuracy_score(golds, predict_index))
+
+
+def compare_raw(predict_path):
+    preditions = []
+    with tf.gfile.GFile(predict_path) as fp:
+        for line in fp:
+            data = [float(d) for d in line.strip().split()[3:]]
+            preditions.append(data.index(max(data)))
+    preditions = np.array(preditions)
+    golds = fetch_20newsgroups(subset='test')['target']
+    print(golds.shape)
+    print(preditions.shape)
+    print(accuracy_score(golds, preditions))
+
+def main1():
+    gold_path = 'gs://shannon_albert/hedwig/Reuters/test.tsv'
+    pred_path = 'gs://shannon_albert/reuters-raw-output/test_results.tsv'
+    compare_multi1(pred_path, gold_path)
+
+
+def main2():
+    compare_single('gs://shannon_albert/20news-output/test_results.tsv')
+    compare_raw('gs://shannon_albert/20news-raw-output/test_results.tsv')
+
+
 if __name__ == '__main__':
-    gold_path = '/home/wuwei/glue_data/Reuters/test.tsv'
-    pred_path = '/home/wuwei/bert/test_results.tsv'
-    compare(pred_path, gold_path)
+    main1()

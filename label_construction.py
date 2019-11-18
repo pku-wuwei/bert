@@ -87,14 +87,14 @@ class LabelConstruction(object):
 
     def get_20_news_dataset(self):
         data = []
-        newsgroups_train = fetch_20newsgroups(subset='test')
+        newsgroups_train = fetch_20newsgroups(subset='train')
         for text, label in zip(newsgroups_train['data'], newsgroups_train['target']):
             data.append([text, newsgroups_train['target_names'][label]])
-        with open('20news/dev.json', 'w') as fo:
+        with open('20news/train.json', 'w') as fo:
             json.dump(data, fo, ensure_ascii=False, indent=2)
 
 
 if __name__ == '__main__':
     constructer = LabelConstruction('desc1', '20news')
-    m = constructer.construct_label_query_map()
+    m = constructer.get_20_news_dataset()
     print(m)
