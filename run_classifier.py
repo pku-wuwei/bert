@@ -24,12 +24,12 @@ import json
 import os
 
 import tensorflow as tf
+from sklearn.datasets import fetch_20newsgroups
 
 import modeling
 import optimization
 import tokenization
 from label_construction import LabelConstruction
-from sklearn.datasets import fetch_20newsgroups
 
 flags = tf.flags
 
@@ -398,8 +398,10 @@ class SstProcessor(DataProcessor):
 
 class SstLabelProcessor(DataProcessor):
     """Processor for the SST data set (label description version)."""
-    constructor = LabelConstruction(mode='desc1', dataset='sst')
-    label_map = constructor.construct_label_query_map()
+
+    def __init__(self):
+        constructor = LabelConstruction(mode='desc1', dataset='sst')
+        self.label_map = constructor.construct_label_query_map()
 
     def get_train_examples(self, data_dir):
         """See base class."""
@@ -438,8 +440,10 @@ class SstLabelProcessor(DataProcessor):
 
 class ReutersNormalProcessor(DataProcessor):
     """Processor for the Reuters data set (label description version)."""
-    constructor = LabelConstruction(mode='desc1', dataset='reuters')
-    label_map = constructor.construct_label_query_map()
+
+    def __init__(self):
+        constructor = LabelConstruction(mode='desc1', dataset='reuters')
+        self.label_map = constructor.construct_label_query_map()
 
     def get_train_examples(self, data_dir):
         """See base class."""
@@ -470,8 +474,10 @@ class ReutersNormalProcessor(DataProcessor):
 
 class ReutersLabelProcessor(DataProcessor):
     """Processor for the Reuters data set (label description version)."""
-    constructor = LabelConstruction(mode='desc1', dataset='reuters')
-    label_map = constructor.construct_label_query_map()
+
+    def __init__(self):
+        constructor = LabelConstruction(mode='desc1', dataset='reuters')
+        self.label_map = constructor.construct_label_query_map()
 
     def get_train_examples(self, data_dir):
         """See base class."""
@@ -503,8 +509,10 @@ class ReutersLabelProcessor(DataProcessor):
 
 class ReutersWikiProcessor(DataProcessor):
     """Processor for the Reuters data set (label description version)."""
-    constructor = LabelConstruction(mode='wiki1', dataset='reuters')
-    label_map = constructor.construct_label_query_map()
+
+    def __init__(self):
+        constructor = LabelConstruction(mode='wiki1', dataset='reuters')
+        self.label_map = constructor.construct_label_query_map()
 
     def get_train_examples(self, data_dir):
         """See base class."""
@@ -537,9 +545,11 @@ class ReutersWikiProcessor(DataProcessor):
 
 class TwentyNewsRawProcessor(DataProcessor):
     """Processor for the 20news data set (raw version)."""
-    constructor = LabelConstruction(mode='desc1', dataset='20news')
-    label_map = constructor.construct_label_query_map()
-    labels = fetch_20newsgroups(subset='train')['target_names']
+
+    def __init__(self):
+        constructor = LabelConstruction(mode='desc1', dataset='20news')
+        self.label_map = constructor.construct_label_query_map()
+        self.labels = fetch_20newsgroups(subset='train')['target_names']
 
     def get_train_examples(self, data_dir):
         """See base class."""
@@ -575,9 +585,11 @@ class TwentyNewsRawProcessor(DataProcessor):
 
 class TwentyNewsDescProcessor(DataProcessor):
     """Processor for the 20news data set (label description version)."""
-    constructor = LabelConstruction(mode='desc1', dataset='20news')
-    label_map = constructor.construct_label_query_map()
-    labels = fetch_20newsgroups(subset='train')['target_names']
+
+    def __init__(self):
+        constructor = LabelConstruction(mode='desc1', dataset='20news')
+        self.label_map = constructor.construct_label_query_map()
+        self.labels = fetch_20newsgroups(subset='train')['target_names']
 
     def get_train_examples(self, data_dir):
         """See base class."""
@@ -606,7 +618,8 @@ class TwentyNewsDescProcessor(DataProcessor):
             for l, d in enumerate(self.label_map):
                 guid = [self.data_types.index(set_type), i, l]
                 query = ' '.join(d)
-                examples.append(InputExample(guid=guid, text_a=query, text_b=text, label=(l == self.labels.index(label))))
+                examples.append(
+                    InputExample(guid=guid, text_a=query, text_b=text, label=(l == self.labels.index(label))))
         return examples
 
 
@@ -785,7 +798,8 @@ def convert_single_example(ex_index, example, label_list, max_seq_length, tokeni
     return feature
 
 
-def file_based_convert_examples_to_features(examples, label_list, max_seq_length, tokenizer, output_file, number_labels):
+def file_based_convert_examples_to_features(examples, label_list, max_seq_length, tokenizer, output_file,
+                                            number_labels):
     """Convert a set of `InputExample`s to a TFRecord file."""
     if tf.gfile.Exists(output_file):
         print(output_file, " already exists, thus do not create.")
@@ -923,7 +937,8 @@ def create_model(bert_config, is_training, input_ids, input_mask, segment_ids,
         else:
             probabilities = tf.nn.sigmoid(logits)  # (batch, num_labels) 每个样本针对每个标签的概率
             labels = tf.to_float(labels)
-            per_example_loss = tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(labels=labels, logits=logits), axis=-1)
+            per_example_loss = tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(labels=labels, logits=logits),
+                                             axis=-1)
             loss = tf.reduce_mean(per_example_loss)
         return loss, per_example_loss, logits, probabilities
 
@@ -1135,13 +1150,25 @@ def main(_):
             num_shards=FLAGS.num_tpu_cores,
             per_host_input_for_training=is_per_host))
 
+    session_config = tf.ConfigProto(
+        log_device_placement=True,
+        inter_op_parallelism_threads=0,
+        intra_op_parallelism_threads=0,
+        allow_soft_placement=True)
+
+    session_config.gpu_options.allow_growth = True
+    session_config.gpu_options.allocator_type = 'BFC'
+    gpu_config = tf.estimator.RunConfig(
+        model_dir=FLAGS.output_dir,
+        save_checkpoints_steps=FLAGS.save_checkpoints_steps,
+        session_config=session_config
+    )
     train_examples = None
     num_train_steps = None
     num_warmup_steps = None
     if FLAGS.do_train:
         train_examples = processor.get_train_examples(FLAGS.data_dir)
         num_train_steps = int(len(train_examples) / FLAGS.train_batch_size * FLAGS.num_train_epochs)
-        print(num_train_steps, 'n' * 29)
         num_warmup_steps = int(num_train_steps * FLAGS.warmup_proportion)
 
     model_fn = model_fn_builder(
