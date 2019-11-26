@@ -62,9 +62,14 @@ def compare_single(predict_path):
                 preditions.append([])
             preditions[-1].append(float(pos))
     predict_index = np.array([pred.index(max(pred)) for pred in preditions])
-    golds = fetch_20newsgroups(subset='test')['target']
-    print(golds.shape)
-    print(predict_index.shape)
+    # golds = fetch_20newsgroups(subset='test')['target']
+    golds = []
+    with open('/data/nfsdata/nlp/datasets/glue_data/SST-2/stsa.binary.test.txt') as fi:
+        for line in fi:
+            golds.append(int(line[0]))
+    golds = np.array(golds)
+    print(list(golds))
+    print(list(predict_index))
     print(accuracy_score(golds, predict_index))
 
 
@@ -76,8 +81,8 @@ def compare_raw(predict_path):
             preditions.append(data.index(max(data)))
     preditions = np.array(preditions)
     golds = fetch_20newsgroups(subset='test')['target']
-    print(golds.shape)
-    print(preditions.shape)
+    print(golds)
+    print(preditions)
     print(accuracy_score(golds, preditions))
 
 def main1():
@@ -92,4 +97,4 @@ def main2():
 
 
 if __name__ == '__main__':
-    main1()
+    compare_single('sstlabel2-output/test_results.tsv')

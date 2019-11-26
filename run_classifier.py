@@ -372,7 +372,13 @@ class SstProcessor(DataProcessor):
 
     def get_test_examples(self, data_dir):
         """See base class."""
-        return self._create_examples(self._read_tsv(os.path.join(data_dir, "test.tsv")), "test")
+        examples = []
+        with open(os.path.join(data_dir, "stsa.binary.test.txt")) as fo:
+            for i, line in enumerate(fo):
+                label = line[0]
+                text_a = line[1:].strip()
+                examples.append(InputExample(guid=[2, i, 1], text_a=text_a, text_b=None, label=label))
+        return examples
 
     def get_labels(self):
         """See base class."""
@@ -391,7 +397,7 @@ class SstProcessor(DataProcessor):
             else:
                 text_a = tokenization.convert_to_unicode(line[0])
                 label = tokenization.convert_to_unicode(line[1])
-            guid = "%s-%s" % (set_type, i)
+            guid = [self.data_types.index(set_type), i, 1]
             examples.append(InputExample(guid=guid, text_a=text_a, text_b=None, label=label))
         return examples
 
@@ -413,7 +419,14 @@ class SstLabelProcessor(DataProcessor):
 
     def get_test_examples(self, data_dir):
         """See base class."""
-        return self._create_examples(self._read_tsv(os.path.join(data_dir, "test.tsv")), "test")
+        examples = []
+        with open(os.path.join(data_dir, "stsa.binary.test.txt")) as fo:
+            for i, line in enumerate(fo):
+                label = line[0]
+                text_a = line[1:].strip()
+                examples.append(InputExample(guid=[2, i, 0], text_a=text_a, text_b='0', label=label))
+                examples.append(InputExample(guid=[2, i, 1], text_a=text_a, text_b='1', label=label))
+        return examples
 
     def get_labels(self):
         """See base class."""
@@ -1077,8 +1090,7 @@ def input_fn_builder(features, seq_length, is_training, drop_remainder, number_l
     return input_fn
 
 
-# This function is not used by this file but is still used by the Colab and
-# people who depend on it.
+# This function is not used by this file but is still used by the Colab and people who depend on it.
 def convert_examples_to_features(examples, label_list, max_seq_length, tokenizer, number_labels):
     """Convert a set of `InputExample`s to a list of `InputFeatures`."""
 
@@ -1103,6 +1115,7 @@ def main(_):
         "xnli": XnliProcessor,
         "sst": SstProcessor,
         "sstlabel": SstLabelProcessor,
+        "sstlabel2": SstLabelProcessor,
         'reuters-raw': ReutersNormalProcessor,
         'reuters-desc': ReutersLabelProcessor,
         'reuters-wiki': ReutersWikiProcessor,

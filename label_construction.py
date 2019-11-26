@@ -25,7 +25,7 @@ class LabelConstruction(object):
     def construct_label_query_map(self):
         if self.mode == 'desc1':
             if self.dataset == 'sst':
-                return {'0': 'negative', '1': 'positive'}
+                return {'0': '0', '1': '1'}
             elif self.dataset == 'reuters':
                 return reuters.categories()
             elif self.dataset == '20news':
@@ -93,8 +93,17 @@ class LabelConstruction(object):
         with open('20news/train.json', 'w') as fo:
             json.dump(data, fo, ensure_ascii=False, indent=2)
 
+    def get_msra(self):
+        labels = set()
+        file_path = '/data/nfsdata/nlp/datasets/sequence_labeling/msra/train.tsv'
+        with open(file_path) as fi:
+            for line in fi:
+                label = line.strip().split('\t')[1].split()
+                labels.update(label)
+        return sorted(list(labels))
+
 
 if __name__ == '__main__':
     constructer = LabelConstruction('desc1', '20news')
-    m = constructer.get_20_news_dataset()
+    m = constructer.get_msra()
     print(m)
