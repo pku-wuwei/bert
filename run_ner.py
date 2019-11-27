@@ -19,6 +19,7 @@ import os
 from typing import List
 
 import tensorflow as tf
+from tensorflow.contrib import crf
 
 import modeling
 import optimization
@@ -61,11 +62,13 @@ flags.DEFINE_bool("do_eval", False, "Whether to run eval on the dev set.")
 
 flags.DEFINE_bool("do_predict", False, "Whether to run the model in inference mode on the test set.")
 
+flags.DEFINE_bool("use_crf", False, "Whether to use the crf after the BERT encoder.")
+
 flags.DEFINE_integer("train_batch_size", 32, "Total batch size for training.")
 
 flags.DEFINE_integer("eval_batch_size", 8, "Total batch size for eval.")
 
-flags.DEFINE_integer("predict_batch_size", 8, "Total batch size for predict.")
+flags.DEFINE_integer("predict_batch_size", 1, "Total batch size for predict.")
 
 flags.DEFINE_float("learning_rate", 5e-5, "The initial learning rate for Adam.")
 
@@ -197,6 +200,10 @@ class MSRAProcessor(DataProcessor):
         """See base class."""
         return self.get_examples(data_dir, data_type='dev')
 
+    def get_test_examples(self, data_dir):
+        """See base class."""
+        return self.get_examples(data_dir, data_type='test')
+
     def get_examples(self, data_dir, data_type):
         """See base class."""
         lines = self._read_tsv(os.path.join(data_dir, data_type + ".tsv"))
@@ -211,7 +218,7 @@ class MSRAProcessor(DataProcessor):
 
     def get_labels(self):
         """See base class."""
-        return ['B-NR', 'B-NS', 'B-NT', 'E-NR', 'E-NS', 'E-NT', 'M-NR', 'M-NS', 'M-NT', 'O', 'S-NR', 'S-NS', 'S-NT']
+        return ['O', 'B-NR', 'B-NS', 'B-NT', 'E-NR', 'E-NS', 'E-NT', 'M-NR', 'M-NS', 'M-NT', 'S-NR', 'S-NS', 'S-NT']
 
 
 def convert_single_example(example: InputExample,
@@ -362,8 +369,28 @@ def file_based_input_fn_builder(input_file, seq_length, is_training, drop_remain
     return input_fn
 
 
+def batch_boolean_mask(batch_input, batch_mask, input_rank):
+    """
+    每个batch取出所需的tensor
+    :param batch_input: (batch, seq_len, hidden)
+    :param batch_mask: (batch, seq_len)
+    :return: (batch, seq_len, hidden)
+    """
+    outputs = []
+    for input_tensor, mask in zip(tf.unstack(batch_input), tf.unstack(batch_mask)):
+        output_tensor = tf.boolean_mask(input_tensor, mask)
+        paddings = [[0, tf.shape(batch_input)[1]-tf.shape(output_tensor)[0]]]
+        if input_rank == 3:
+            paddings.extend([[0, 0]])
+        # paddings = tf.Print(paddings, [output_tensor, paddings])
+        padded_output = tf.pad(output_tensor, paddings, 'CONSTANT', constant_values=-1)  # (seq, dim)
+        outputs.append(padded_output)
+    output_tensors = tf.stack(outputs, axis=0)
+    return output_tensors
+
+
 def create_model(bert_config, is_training, input_ids, input_mask, segment_ids,
-                 label_ids, label_mask, num_labels, use_one_hot_embeddings):
+                 label_ids, label_mask, num_labels, use_one_hot_embeddings, use_crf=False):
     """Creates a classification model."""
     model = modeling.BertModel(
         config=bert_config,
@@ -374,23 +401,36 @@ def create_model(bert_config, is_training, input_ids, input_mask, segment_ids,
         use_one_hot_embeddings=use_one_hot_embeddings)
 
     output_layer = model.get_sequence_output()  # (batch_size, sequence_len, hidden_size)
-    valid_output = tf.boolean_mask(output_layer, label_mask)  # (valid_tokens, hidden_size)
-    valid_labels = tf.boolean_mask(label_ids, label_mask)  # (valid_tokens)
+    valid_output = batch_boolean_mask(output_layer, label_mask, 3)  # (batch_size, sequence_len, hidden_size)
+    valid_labels = batch_boolean_mask(label_ids, label_mask, 2)  # (batch_size, sequence_len)
     hidden_size = output_layer.shape[-1].value
+    sequence_length = tf.reduce_sum(label_mask, axis=-1)  # (batch_size)
+    sequence_mask = tf.to_float(tf.sequence_mask(sequence_length, tf.shape(label_mask)[1]))
     with tf.variable_scope("loss"):
         valid_output = tf.nn.dropout(valid_output, keep_prob=0.9 if is_training else 1)
         middle_logits = tf.layers.dense(valid_output, units=hidden_size, activation=tf.tanh)
-        logits = tf.layers.dense(middle_logits, units=num_labels, activation=tf.tanh)
-        probabilities = tf.nn.softmax(logits, axis=-1)
-        log_probs = tf.nn.log_softmax(logits, axis=-1)
-        one_hot_labels = tf.one_hot(valid_labels, depth=num_labels, dtype=tf.float32)
-        per_example_loss = -tf.reduce_sum(one_hot_labels * log_probs, axis=-1)
-        loss = tf.reduce_mean(per_example_loss)
-        return loss, per_example_loss, logits, probabilities
+        logits = tf.layers.dense(middle_logits, units=num_labels, activation=tf.tanh)  # (batch, seq_len, num_labels)
+        if use_crf:
+            trans = tf.get_variable("transitions", shape=[num_labels, num_labels])
+            log_likelihood, trans = crf.crf_log_likelihood(
+                inputs=logits,
+                tag_indices=valid_labels,
+                transition_params=trans,
+                sequence_lengths=sequence_length)
+            pred_ids, _ = crf.crf_decode(potentials=logits, transition_params=trans, sequence_length=sequence_length)
+            return tf.reduce_mean(-log_likelihood), -log_likelihood, pred_ids
+        else:
+            log_probs = tf.nn.log_softmax(logits, axis=-1)
+            one_hot_labels = tf.one_hot(valid_labels, depth=num_labels, dtype=tf.float32)
+            per_token_loss = -tf.reduce_sum(one_hot_labels * log_probs, axis=-1)  # (batch, seq_len)
+            per_example_loss = tf.reduce_mean(per_token_loss * sequence_mask, -1)
+            loss = tf.reduce_mean(per_example_loss)
+            pred_ids = tf.argmax(tf.nn.softmax(logits, axis=-1), -1)
+            return loss, per_example_loss, pred_ids
 
 
 def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
-                     num_train_steps, num_warmup_steps, use_tpu, use_one_hot_embeddings):
+                     num_train_steps, num_warmup_steps, use_tpu, use_one_hot_embeddings, use_crf=False):
     """Returns `model_fn` closure for TPUEstimator."""
 
     def model_fn(features, labels, mode, params):  # pylint: disable=unused-argument
@@ -409,9 +449,9 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
 
         is_training = (mode == tf.estimator.ModeKeys.TRAIN)
 
-        total_loss, per_example_loss, logits, probabilities = create_model(
+        total_loss, per_example_loss, pred_ids = create_model(
             bert_config, is_training, input_ids, input_mask, segment_ids, label_ids, label_mask,
-            num_labels, use_one_hot_embeddings)
+            num_labels, use_one_hot_embeddings, use_crf)
 
         tvars = tf.trainable_variables()
         initialized_variable_names = {}
@@ -444,26 +484,19 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
                 training_hooks=[logging_hook],
                 scaffold_fn=scaffold_fn)
         elif mode == tf.estimator.ModeKeys.EVAL:
-            def metric_fn(per_example_loss, label_ids, logits, is_real_example):
-                if not is_multi_label:  #
-                    predictions = tf.argmax(logits, axis=-1, output_type=tf.int32)
-                    labels = tf.argmax(label_ids, axis=-1, output_type=tf.int32)
-                    accuracy = tf.metrics.accuracy(labels=labels, predictions=predictions, weights=is_real_example)
-                else:
-                    correct_prediction = tf.equal(tf.round(tf.nn.sigmoid(logits)), tf.round(tf.to_float(label_ids)))
-                    accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-                loss = tf.metrics.mean(values=per_example_loss)
-                return {"eval_accuracy": accuracy, "eval_loss": loss}
-
+            def metric_fn(label_ids, label_mask, pred_ids):
+                return {
+                    "eval_loss": tf.metrics.mean_squared_error(labels=label_ids, predictions=pred_ids, weights=label_mask),
+                }
             output_spec = tf.contrib.tpu.TPUEstimatorSpec(
                 mode=mode,
                 loss=total_loss,
-                eval_metrics=(metric_fn, [per_example_loss, label_ids, logits, is_real_example]),
+                eval_metrics=(metric_fn, [label_ids, label_mask, pred_ids]),
                 scaffold_fn=scaffold_fn)
         else:
             output_spec = tf.contrib.tpu.TPUEstimatorSpec(
                 mode=mode,
-                predictions={"probabilities": probabilities, "guid": features['guid']},
+                predictions={"pred_ids": pred_ids, "guid": features['guid']},
                 scaffold_fn=scaffold_fn)
         return output_spec
 
@@ -533,6 +566,7 @@ def main(_):
         num_warmup_steps=num_warmup_steps,
         use_tpu=FLAGS.use_tpu,
         use_one_hot_embeddings=FLAGS.use_tpu,
+        use_crf=FLAGS.use_crf
     )
 
     # If TPU is not available, this will fall back to normal Estimator on CPU

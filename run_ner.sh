@@ -19,6 +19,7 @@ python3 run_ner.py \
 --iterations_per_loop=2000 \
 --learning_rate=2e-5 \
 --num_train_epochs=3.0 \
---output_dir=${TASK_NAME}-bert/ \
+--output_dir=${TASK_NAME}-bert-crf/ \
 --use_tpu=false \
+--use_crf=true \
 --tpu_name=${TPU_NAME}
