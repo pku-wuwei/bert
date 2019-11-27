@@ -19,7 +19,7 @@ import os
 from typing import List
 
 import tensorflow as tf
-from tensorflow.contrib import crf
+from tensorflow.contrib import crf, tpu
 
 import modeling
 import optimization
@@ -389,6 +389,25 @@ def batch_boolean_mask(batch_input, batch_mask, input_rank):
     return output_tensors
 
 
+def map_boolean_mask(batch_input, batch_mask, input_rank):
+    """
+    每个batch取出所需的tensor
+    :param batch_input: (batch, seq_len, hidden)
+    :param batch_mask: (batch, seq_len)
+    :return: (batch, seq_len, hidden)
+    """
+    def mask_and_pad(input_tensor_and_mask):
+        output_tensor = tf.boolean_mask(input_tensor_and_mask[0], input_tensor_and_mask[1])
+        paddings = [[0, tf.shape(batch_input)[1]-tf.shape(output_tensor)[0]]]
+        if input_rank == 3:
+            paddings.extend([[0, 0]])
+        padded_output = tf.pad(output_tensor, paddings, 'CONSTANT', constant_values=-1)  # (seq, dim)
+        return padded_output
+    dtype = tf.float32 if input_rank == 3 else tf.int32
+    output_tensors = tf.map_fn(mask_and_pad, (batch_input, batch_mask), dtype)
+    return output_tensors
+
+
 def create_model(bert_config, is_training, input_ids, input_mask, segment_ids,
                  label_ids, label_mask, num_labels, use_one_hot_embeddings, use_crf=False):
     """Creates a classification model."""
@@ -401,8 +420,8 @@ def create_model(bert_config, is_training, input_ids, input_mask, segment_ids,
         use_one_hot_embeddings=use_one_hot_embeddings)
 
     output_layer = model.get_sequence_output()  # (batch_size, sequence_len, hidden_size)
-    valid_output = batch_boolean_mask(output_layer, label_mask, 3)  # (batch_size, sequence_len, hidden_size)
-    valid_labels = batch_boolean_mask(label_ids, label_mask, 2)  # (batch_size, sequence_len)
+    valid_output = map_boolean_mask(output_layer, label_mask, 3)  # (batch_size, sequence_len, hidden_size)
+    valid_labels = map_boolean_mask(label_ids, label_mask, 2)  # (batch_size, sequence_len)
     hidden_size = output_layer.shape[-1].value
     sequence_length = tf.reduce_sum(label_mask, axis=-1)  # (batch_size)
     sequence_mask = tf.to_float(tf.sequence_mask(sequence_length, tf.shape(label_mask)[1]))
@@ -477,7 +496,7 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
             train_op = optimization.create_optimizer(
                 total_loss, learning_rate, num_train_steps, num_warmup_steps, use_tpu)
             logging_hook = tf.train.LoggingTensorHook({"loss": total_loss}, every_n_iter=40)
-            output_spec = tf.contrib.tpu.TPUEstimatorSpec(
+            output_spec = tpu.TPUEstimatorSpec(
                 mode=mode,
                 loss=total_loss,
                 train_op=train_op,
@@ -488,13 +507,13 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
                 return {
                     "eval_loss": tf.metrics.mean_squared_error(labels=label_ids, predictions=pred_ids, weights=label_mask),
                 }
-            output_spec = tf.contrib.tpu.TPUEstimatorSpec(
+            output_spec = tpu.TPUEstimatorSpec(
                 mode=mode,
                 loss=total_loss,
                 eval_metrics=(metric_fn, [label_ids, label_mask, pred_ids]),
                 scaffold_fn=scaffold_fn)
         else:
-            output_spec = tf.contrib.tpu.TPUEstimatorSpec(
+            output_spec = tpu.TPUEstimatorSpec(
                 mode=mode,
                 predictions={"pred_ids": pred_ids, "guid": features['guid']},
                 scaffold_fn=scaffold_fn)
@@ -538,13 +557,13 @@ def main(_):
         tpu_cluster_resolver = tf.contrib.cluster_resolver.TPUClusterResolver(
             FLAGS.tpu_name, zone=FLAGS.tpu_zone, project=FLAGS.gcp_project)
 
-    is_per_host = tf.contrib.tpu.InputPipelineConfig.PER_HOST_V2
-    run_config = tf.contrib.tpu.RunConfig(
+    is_per_host = tpu.InputPipelineConfig.PER_HOST_V2
+    run_config = tpu.RunConfig(
         cluster=tpu_cluster_resolver,
         master=FLAGS.master,
         model_dir=FLAGS.output_dir,
         save_checkpoints_steps=FLAGS.save_checkpoints_steps,
-        tpu_config=tf.contrib.tpu.TPUConfig(
+        tpu_config=tpu.TPUConfig(
             iterations_per_loop=FLAGS.iterations_per_loop,
             num_shards=FLAGS.num_tpu_cores,
             per_host_input_for_training=is_per_host))
@@ -571,7 +590,7 @@ def main(_):
 
     # If TPU is not available, this will fall back to normal Estimator on CPU
     # or GPU.
-    estimator = tf.contrib.tpu.TPUEstimator(
+    estimator = tpu.TPUEstimator(
         use_tpu=FLAGS.use_tpu,
         model_fn=model_fn,
         config=run_config,
@@ -597,14 +616,8 @@ def main(_):
     if FLAGS.do_eval:
         eval_examples = processor.get_dev_examples(FLAGS.data_dir)
         num_actual_eval_examples = len(eval_examples)
-        if FLAGS.use_tpu:
-            # TPU requires a fixed batch size for all batches, therefore the number
-            # of examples must be a multiple of the batch size, or else examples
-            # will get dropped. So we pad with fake examples which are ignored
-            # later on. These do NOT count towards the metric (all tf.metrics
-            # support a per-instance weight, and these get a weight of 0.0).
-            while len(eval_examples) % FLAGS.eval_batch_size != 0:
-                eval_examples.append(PaddingInputExample())
+        while len(eval_examples) % FLAGS.eval_batch_size != 0:
+            eval_examples.append(PaddingInputExample())
 
         eval_file = os.path.join(FLAGS.output_dir, "eval.tf_record")
         file_based_convert_examples_to_features(eval_examples, label_list, FLAGS.max_seq_length, tokenizer, eval_file)
@@ -615,13 +628,8 @@ def main(_):
                         len(eval_examples) - num_actual_eval_examples)
         tf.logging.info("  Batch size = %d", FLAGS.eval_batch_size)
 
-        # This tells the estimator to run through the entire set.
-        eval_steps = None
-        # However, if running eval on the TPU, you will need to specify the
-        # number of steps.
-        if FLAGS.use_tpu:
-            assert len(eval_examples) % FLAGS.eval_batch_size == 0
-            eval_steps = int(len(eval_examples) // FLAGS.eval_batch_size)
+        assert len(eval_examples) % FLAGS.eval_batch_size == 0
+        eval_steps = int(len(eval_examples) // FLAGS.eval_batch_size)
 
         eval_drop_remainder = True if FLAGS.use_tpu else False
         eval_input_fn = file_based_input_fn_builder(
