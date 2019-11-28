@@ -686,7 +686,7 @@ def main(_):
                 if i >= num_actual_predict_examples:
                     break
                 output_line += "\t".join(
-                    str(class_probability) for class_probability in prediction["probabilities"]) + "\n"
+                    str(class_probability) for class_probability in prediction["pred_ids"]) + "\n"
                 writer.write(output_line)
                 num_written_lines += 1
         assert num_written_lines == num_actual_predict_examples
