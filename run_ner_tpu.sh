@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 export TASK_NAME=msra
-export BERT_BASE_DIR=gs://shannon_storage/bert/chinese_L-12_H-768_A-12/
+export BERT_BASE_DIR=gs://shannon_storage/bert/chinese_L-12_H-768_A-12
 export DATA_DIR=gs://shannon_storage/sequence_labeling/msra/
 export OUTPUT_DIR=gs://shannon_storage/output/msra-bert-crf/
-export TPU_NAME=instance-1
+export TPU_NAME=shannon
 
 python3 run_ner.py \
 --task_name=${TASK_NAME} \
@@ -16,7 +16,7 @@ python3 run_ner.py \
 --init_checkpoint=${BERT_BASE_DIR}/bert_model.ckpt \
 --output_dir=${OUTPUT_DIR} \
 --max_seq_length=512 \
---train_batch_size=512 \
+--train_batch_size=6 \
 --save_checkpoints_steps=2000 \
 --iterations_per_loop=2000 \
 --learning_rate=2e-5 \
