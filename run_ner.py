@@ -16,10 +16,10 @@
 
 import csv
 import os
-from typing import List
 
 import tensorflow as tf
 from tensorflow.contrib import crf, tpu
+from typing import List
 
 import modeling
 import optimization
@@ -266,6 +266,7 @@ def convert_single_example(example: InputExample,
     assert len(segment_ids) == max_seq_length
     assert len(label_ids) == max_seq_length
     assert len(label_mask) == max_seq_length
+    assert all([label >= 0 for label in label_ids]), F"tokens: {tokens}, labels: {label_ids}"
 
     if example.guid[1] < 5:
         tf.logging.info("*** Example ***")
@@ -379,7 +380,7 @@ def batch_boolean_mask(batch_input, batch_mask, input_rank):
     outputs = []
     for input_tensor, mask in zip(tf.unstack(batch_input), tf.unstack(batch_mask)):
         output_tensor = tf.boolean_mask(input_tensor, mask)
-        paddings = [[0, tf.shape(batch_input)[1]-tf.shape(output_tensor)[0]]]
+        paddings = [[0, tf.shape(batch_input)[1] - tf.shape(output_tensor)[0]]]
         if input_rank == 3:
             paddings.extend([[0, 0]])
         # paddings = tf.Print(paddings, [output_tensor, paddings])
@@ -396,13 +397,15 @@ def map_boolean_mask(batch_input, batch_mask, input_rank):
     :param batch_mask: (batch, seq_len)
     :return: (batch, seq_len, hidden)
     """
+
     def mask_and_pad(input_tensor_and_mask):
         output_tensor = tf.boolean_mask(input_tensor_and_mask[0], input_tensor_and_mask[1])
-        paddings = [[0, tf.shape(batch_input)[1]-tf.shape(output_tensor)[0]]]
+        paddings = [[0, tf.shape(batch_input)[1] - tf.shape(output_tensor)[0]]]
         if input_rank == 3:
             paddings.extend([[0, 0]])
-        padded_output = tf.pad(output_tensor, paddings, 'CONSTANT', constant_values=-1)  # (seq, dim)
+        padded_output = tf.pad(output_tensor, paddings, 'CONSTANT', constant_values=0)  # (seq, dim)
         return padded_output
+
     dtype = tf.float32 if input_rank == 3 else tf.int32
     output_tensors = tf.map_fn(mask_and_pad, (batch_input, batch_mask), dtype)
     return output_tensors
@@ -430,12 +433,8 @@ def create_model(bert_config, is_training, input_ids, input_mask, segment_ids,
         middle_logits = tf.layers.dense(valid_output, units=hidden_size, activation=tf.tanh)
         logits = tf.layers.dense(middle_logits, units=num_labels, activation=tf.tanh)  # (batch, seq_len, num_labels)
         if use_crf:
-            trans = tf.get_variable("transitions", shape=[num_labels, num_labels])
-            log_likelihood, trans = crf.crf_log_likelihood(
-                inputs=logits,
-                tag_indices=valid_labels,
-                transition_params=trans,
-                sequence_lengths=sequence_length)
+            log_likelihood, trans = crf.crf_log_likelihood(inputs=logits, tag_indices=valid_labels,
+                                                           sequence_lengths=sequence_length)
             pred_ids, _ = crf.crf_decode(potentials=logits, transition_params=trans, sequence_length=sequence_length)
             return tf.reduce_mean(-log_likelihood), -log_likelihood, pred_ids
         else:
@@ -505,8 +504,10 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
         elif mode == tf.estimator.ModeKeys.EVAL:
             def metric_fn(label_ids, label_mask, pred_ids):
                 return {
-                    "eval_loss": tf.metrics.mean_squared_error(labels=label_ids, predictions=pred_ids, weights=label_mask),
+                    "eval_loss": tf.metrics.mean_squared_error(labels=label_ids, predictions=pred_ids,
+                                                               weights=label_mask),
                 }
+
             output_spec = tpu.TPUEstimatorSpec(
                 mode=mode,
                 loss=total_loss,
