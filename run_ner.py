@@ -384,7 +384,7 @@ def batch_boolean_mask(batch_input, batch_mask, input_rank):
         if input_rank == 3:
             paddings.extend([[0, 0]])
         # paddings = tf.Print(paddings, [output_tensor, paddings])
-        padded_output = tf.pad(output_tensor, paddings, 'CONSTANT', constant_values=-1)  # (seq, dim)
+        padded_output = tf.pad(output_tensor, paddings, 'CONSTANT', constant_values=0)  # (seq, dim)
         outputs.append(padded_output)
     output_tensors = tf.stack(outputs, axis=0)
     return output_tensors
@@ -436,7 +436,13 @@ def create_model(bert_config, is_training, input_ids, input_mask, segment_ids,
             log_likelihood, trans = crf.crf_log_likelihood(inputs=logits, tag_indices=valid_labels,
                                                            sequence_lengths=sequence_length)
             pred_ids, _ = crf.crf_decode(potentials=logits, transition_params=trans, sequence_length=sequence_length)
-            return tf.reduce_mean(-log_likelihood), -log_likelihood, pred_ids
+            debug_info = {
+                'output_layer': output_layer,
+                'valid_output': valid_output,
+                'middle_logits': middle_logits,
+                'logits': logits
+            }
+            return tf.reduce_mean(-log_likelihood), -log_likelihood, pred_ids, debug_info
         else:
             log_probs = tf.nn.log_softmax(logits, axis=-1)
             one_hot_labels = tf.one_hot(valid_labels, depth=num_labels, dtype=tf.float32)
@@ -467,7 +473,7 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
 
         is_training = (mode == tf.estimator.ModeKeys.TRAIN)
 
-        total_loss, per_example_loss, pred_ids = create_model(
+        total_loss, per_example_loss, pred_ids, debug_info = create_model(
             bert_config, is_training, input_ids, input_mask, segment_ids, label_ids, label_mask,
             num_labels, use_one_hot_embeddings, use_crf)
 
@@ -475,8 +481,7 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
         initialized_variable_names = {}
         scaffold_fn = None
         if init_checkpoint:
-            (assignment_map, initialized_variable_names
-             ) = modeling.get_assignment_map_from_checkpoint(tvars, init_checkpoint)
+            assignment_map, initialized_variable_names = modeling.get_assignment_map_from_checkpoint(tvars, init_checkpoint)
             if use_tpu:
                 def tpu_scaffold():
                     tf.train.init_from_checkpoint(init_checkpoint, assignment_map)
@@ -516,7 +521,7 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
         else:
             output_spec = tpu.TPUEstimatorSpec(
                 mode=mode,
-                predictions={"pred_ids": pred_ids, "guid": features['guid']},
+                predictions={"pred_ids": pred_ids, "guid": features['guid'], **debug_info},
                 scaffold_fn=scaffold_fn)
         return output_spec
 
@@ -679,18 +684,22 @@ def main(_):
         result = estimator.predict(input_fn=predict_input_fn)
 
         output_predict_file = os.path.join(FLAGS.output_dir, "test_results.tsv")
+        import json
         with tf.gfile.GFile(output_predict_file, "w") as writer:
-            num_written_lines = 0
-            tf.logging.info("***** Predict results *****")
-            for (i, prediction) in enumerate(result):
-                output_line = " ".join(str(guid) for guid in prediction["guid"]) + "\t"
-                if i >= num_actual_predict_examples:
-                    break
-                output_line += "\t".join(
-                    str(class_probability) for class_probability in prediction["pred_ids"]) + "\n"
-                writer.write(output_line)
-                num_written_lines += 1
-        assert num_written_lines == num_actual_predict_examples
+            for i, prediction in enumerate(result):
+                for k, v in prediction.items():
+                    writer.write(json.dumps({'index': i, k: v.tolist()}, ensure_ascii=False, indent=2) + '\n')
+            # num_written_lines = 0
+            # tf.logging.info("***** Predict results *****")
+            # for (i, prediction) in enumerate(result):
+            #     output_line = " ".join(str(guid) for guid in prediction["guid"]) + "\t"
+            #     if i >= num_actual_predict_examples:
+            #         break
+            #     output_line += "\t".join(
+            #         str(class_probability) for class_probability in prediction["pred_ids"]) + "\n"
+            #     writer.write(output_line)
+            #     num_written_lines += 1
+        # assert num_written_lines == num_actual_predict_examples
 
 
 if __name__ == "__main__":
