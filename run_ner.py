@@ -43,6 +43,8 @@ flags.DEFINE_string("vocab_file", None, "The vocabulary file that the BERT model
 
 flags.DEFINE_string("output_dir", None, "The output directory where the model checkpoints will be written.")
 
+flags.DEFINE_string("export_dir_base", None, "The export directory where the saved model will be written.")
+
 # Other parameters
 
 flags.DEFINE_string("init_checkpoint", None, "Initial checkpoint (usually from a pre-trained BERT model).")
@@ -370,6 +372,19 @@ def file_based_input_fn_builder(input_file, seq_length, is_training, drop_remain
     return input_fn
 
 
+def serving_input_fn(seq_length):
+    name_to_features = {
+        "input_ids": tf.FixedLenFeature([seq_length], tf.int64),
+        "input_mask": tf.FixedLenFeature([seq_length], tf.int64),
+        "segment_ids": tf.FixedLenFeature([seq_length], tf.int64),
+        "label_ids": tf.FixedLenFeature([seq_length], tf.int64),
+        "label_mask": tf.FixedLenFeature([seq_length], tf.int64),
+        "is_real_example": tf.FixedLenFeature([], tf.int64),
+        "guid": tf.FixedLenFeature([2], tf.int64),
+    }
+    return tf.estimator.export.build_parsing_serving_input_receiver_fn(name_to_features)
+
+
 def batch_boolean_mask(batch_input, batch_mask, input_rank):
     """
     每个batch取出所需的tensor
@@ -508,21 +523,20 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
                 scaffold_fn=scaffold_fn)
         elif mode == tf.estimator.ModeKeys.EVAL:
             def metric_fn(label_ids, label_mask, pred_ids):
-                return {
-                    "eval_loss": tf.metrics.mean_squared_error(labels=label_ids, predictions=pred_ids,
-                                                               weights=label_mask),
-                }
-
+                return {"eval_loss": tf.metrics.mean_squared_error(labels=label_ids, predictions=pred_ids,
+                                                                   weights=label_mask)}
             output_spec = tpu.TPUEstimatorSpec(
                 mode=mode,
                 loss=total_loss,
                 eval_metrics=(metric_fn, [label_ids, label_mask, pred_ids]),
                 scaffold_fn=scaffold_fn)
         else:
+            predictions = {"pred_ids": pred_ids, "guid": features['guid'], **debug_info}
             output_spec = tpu.TPUEstimatorSpec(
                 mode=mode,
-                predictions={"pred_ids": pred_ids, "guid": features['guid'], **debug_info},
-                scaffold_fn=scaffold_fn)
+                predictions=predictions,
+                scaffold_fn=scaffold_fn,
+                export_outputs={'serving_default': tf.estimator.export.PredictOutput(predictions)})
         return output_spec
 
     return model_fn
@@ -547,6 +561,7 @@ def main(_):
                          "%d" % (FLAGS.max_seq_length, bert_config.max_position_embeddings))
 
     tf.gfile.MakeDirs(FLAGS.output_dir)
+    tf.gfile.MakeDirs(FLAGS.export_dir_base)
 
     task_name = FLAGS.task_name.lower()
 
@@ -681,8 +696,11 @@ def main(_):
             is_training=False,
             drop_remainder=predict_drop_remainder)
 
-        result = estimator.predict(input_fn=predict_input_fn)
+        serving_input_receiver_fn = serving_input_fn(seq_length=FLAGS.max_seq_length)
+        estimator._export_to_tpu = False
 
+        estimator.export_savedmodel(FLAGS.export_dir_base, serving_input_receiver_fn, strip_default_attrs=True)
+        result = estimator.predict(input_fn=predict_input_fn)
         output_predict_file = os.path.join(FLAGS.output_dir, "test_results.tsv")
         import json
         with tf.gfile.GFile(output_predict_file, "w") as writer:

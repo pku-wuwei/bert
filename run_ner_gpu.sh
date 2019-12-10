@@ -2,13 +2,13 @@
 #!/usr/bin/env bash
 export BERT_BASE_DIR=/data/nfsdata/nlp/BERT_BASE_DIR/chinese_L-12_H-768_A-12
 export TASK_NAME=msra
-export CUDA_VISIBLE_DEVICES=3
+export CUDA_VISIBLE_DEVICES=1
 export TPU_NAME=wuwei
 
 python3 run_ner.py \
 --task_name=${TASK_NAME} \
---do_train=true \
---do_eval=true \
+--do_train=false \
+--do_eval=false \
 --do_predict=true \
 --data_dir=/data/nfsdata/nlp/datasets/sequence_labeling/msra \
 --vocab_file=${BERT_BASE_DIR}/vocab.txt \
@@ -20,7 +20,8 @@ python3 run_ner.py \
 --iterations_per_loop=2000 \
 --learning_rate=2e-5 \
 --num_train_epochs=3.0 \
---output_dir=${TASK_NAME}-bert-crf-test/ \
+--output_dir=${TASK_NAME}-bert-crf-test3/ \
+--export_dir_base=${TASK_NAME}-export/ \
 --use_tpu=false \
 --use_crf=true \
 --tpu_name=${TPU_NAME}
